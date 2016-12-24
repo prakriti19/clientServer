@@ -10,14 +10,21 @@ import java.util.concurrent.Executors;
 
 public class Server {
 
+	//creating the pool of threads using the executor service to create a thread each time a client is created 
+	//a dedicated thread is assigned to it
+	
 	private ExecutorService executorService = Executors.newCachedThreadPool();
+	//creating the socket
 	private ServerSocket  serverSocket;
+	//creating a map to store the client number and corresponding socket for communication between server and client
 	static ConcurrentHashMap<Socket,Integer> clientMap = new ConcurrentHashMap<Socket,Integer>();
+	//counter to create a client number
 	static int clientNum = 1;
-
+	//port number of server	
 	private static final int sPort = 8000;   //The server will be listening on this port number
 
 	public static void main(String[] args) throws Exception {
+		//server is created and run method is called
 		System.out.println(" server ");
 		Server myServer = new Server();
 		myServer.runServer();
@@ -55,11 +62,13 @@ public class Server {
 	                 }
 	                    PrintStream connectionNum = new PrintStream(s.getOutputStream());
 	                    System.out.println("connected with client no " + clientNum );
-	                    clientMap.put(s,clientNum);
-	                    connectionNum.println(clientNum);
-	          		    connectionNum.flush();
+	                    //store the new client in the map
+			    clientMap.put(s,clientNum);
+	                    //assign the client number and communicate it to client
+			    connectionNum.println(clientNum);
+	          	    connectionNum.flush();
 	                    executorService.execute(new Handler(s,clientNum));
-	                	clientNum++;
+	                    clientNum++;
 	                    
 	                } catch(IOException ioe) {
 	                    System.out.println("Error accepting connection");
@@ -116,9 +125,6 @@ public class Server {
 				String command = msgFromClient[0];
 				String secondArg = msgFromClient[1];
 				
-				//String secondArg = in.readLine();
-				//System.out.println(" command " + command);
-				//System.out.println(" secondArg " + secondArg);
 				if(command.equalsIgnoreCase("broadcast")){
 					if(!secondArg.equalsIgnoreCase("file")){
 						System.out.println(" broadcast msg ");
@@ -127,9 +133,6 @@ public class Server {
 						System.out.println(" message " + message);
 						sendMessageBroadcast(message);
 					}else{
-						//System.out.println(" broadcast file "+ message);
-						//System.out.println(" file name " + msgFromClient[2]);
-						//System.out.println(" fileLen " + msgFromClient[3]);
 						sendFileBroadcast(msgFromClient[2],Long.parseLong(msgFromClient[3]));
 					}
 				}else if(command.equalsIgnoreCase("blockcast")){
@@ -142,11 +145,6 @@ public class Server {
     						System.out.println(" blockcast "+ message + " to " + client);
     						sendMessageBlockcast(message,client);
     					}else{
-    						//System.out.println(" blockcast file to " + client + " with msg " + message);
-    						//message = in.readLine();
-    						//String msgArr[] = message.split("-");
-    						//System.out.println(" file name " + msgFromClient[3]);
-    						//System.out.println(" fileLen " + msgFromClient[4]);
     						sendFileBlockcast(msgFromClient[3],Long.parseLong(msgFromClient[4]),client);
     					
     					}
@@ -154,23 +152,16 @@ public class Server {
 				}else if(command.equalsIgnoreCase("unicast")){
 					int client = Integer.parseInt(secondArg.replaceAll("[^0-9?!\\.]",""));
 
-		    	    //else{
-		            	String thirdArg = msgFromClient[2];
+		    	    	String thirdArg = msgFromClient[2];
 						if(!thirdArg.equalsIgnoreCase("file")){
 							message = thirdArg;
 							//MESSAGE = message.toUpperCase();
 							System.out.println(" unicast " + message + " to " + client);
 							sendMessageUnicast(message,client);
 						}else{
-							//System.out.println(" unicast file  to " + client+ " with msg " + message);
-							//message = in.readLine();
-							//String msgArr[] = message.split("-");
-							//System.out.println(" file name " + msgFromClient[3]);
-							//System.out.println(" fileLen " + msgFromClient[4]);
 							sendFileUnicast(msgFromClient[3],Long.parseLong(msgFromClient[4]),client);
 						}
-		            //}
-					
+		          		
 				}else{
 					System.out.println(" command " + command);
 					System.out.println(" invalid function ");
@@ -197,6 +188,7 @@ public class Server {
 			}
 			catch(IOException ioException){
 				System.out.println("Disconnect with Client " + no);
+				//once the client has been disconnected, remove the client from the map and delete the corresponding directry
 				for(Socket s:clientMap.keySet()){
 					if(clientMap.get(s)==no){
 						clientMap.remove(s);
@@ -210,6 +202,7 @@ public class Server {
 		}
 	}
     
+	//function to delete the folder
         public void deleteDir(File file) {
             File[] contents = file.listFiles();
             if (contents != null) {
@@ -219,19 +212,18 @@ public class Server {
             }
             file.delete();
         }
+		
         /******* FUNCTIONS FOR FILE TRANSFER*******/
     	
+	/* This function recieves the file from a client with a broadcast request and send it futher to all the clients in the map */
         public void sendFileBroadcast(String fileName, long fileLen) throws IOException{
         	System.out.println(" send file to everyone");
         	DataInputStream myis = new DataInputStream(connection.getInputStream());
         	//System.out.println(" obj " + myis.available());
         	
         	byte br[] = new byte[(int)fileLen];
-        	//myis.readFully(br); 
         	myis.readFully(br,0,br.length); 
-        	//System.out.println(br.length + " ");
-        	//byte br[] = new byte[1024];
-    		int count = 0;
+        	int count = 0;
     		long flen = fileLen;
     		//System.out.println(" written file");
     		
@@ -262,7 +254,9 @@ public class Server {
     		
         }
                 
-        
+        /* This function recieves the file from a client with a blockcast the request and send it futher to all the clients in the map
+	   except the client mentioned by the requesting client	
+	*/
         public void sendFileBlockcast(String fileName, long fileLen, int clientNo) throws IOException{
         	System.out.println(" send file to all except " + clientNo);
         	DataInputStream myis = new DataInputStream(connection.getInputStream());
@@ -302,6 +296,10 @@ public class Server {
             }
         }
         
+	
+        /* This function recieves the file from a client with a unicast the request and send it futher to 
+	client mentioned by the requesting client	
+	*/
          public void sendFileUnicast(String fileName, long fileLen, int clientNo) throws IOException{
         	System.out.println(" send file one");
         	DataInputStream myis = new DataInputStream(connection.getInputStream());
@@ -345,7 +343,7 @@ public class Server {
         }
          
          /******FUNCTIONS FOR MESSAGE TRANSFER******/
-         
+         //these functions are similar to the functions above just that these transfer text messages only
         
 	    public void sendMessageBroadcast(String msg)
 		{
